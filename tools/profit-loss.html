@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حاسبة الربح والخسارة</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+.profit-meter {
+  height: 12px;
+  background: var(--card);
+  border-radius: 30px;
+  overflow: hidden;
+  margin: 16px 0;
+  border: 1px solid var(--border);
+}
+.profit-bar {
+  height: 100%;
+  border-radius: 30px;
+  transition: width 0.5s cubic-bezier(0.34,1.56,0.64,1), background 0.3s;
+  background: linear-gradient(90deg, var(--success), #20c97a);
+}
+.profit-bar.loss { background: linear-gradient(90deg, var(--danger), #ff6b6b); }
+.profit-bar.low { background: linear-gradient(90deg, var(--accent), #ffcc44); }
+
+.result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.stat-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+.stat-box.green { border-color: var(--success); }
+.stat-box.red   { border-color: var(--danger); }
+.stat-box.orange { border-color: var(--accent); }
+
+.stat-label { color: var(--muted); font-size: 0.78rem; font-weight: 700; margin-bottom: 6px; }
+.stat-value { font-size: 1.5rem; font-weight: 900; }
+.stat-value.green { color: var(--success); }
+.stat-value.red   { color: var(--danger); }
+.stat-value.orange { color: var(--accent); }
+
+.verdict {
+  text-align: center;
+  padding: 18px;
+  border-radius: var(--radius);
+  font-size: 1.2rem;
+  font-weight: 900;
+  margin-top: 20px;
+  transition: all 0.3s;
+  display: none;
+}
+.verdict.profit { background: rgba(45,206,137,0.12); border: 1px solid var(--success); color: var(--success); display: block; }
+.verdict.loss   { background: rgba(245,54,54,0.12); border: 1px solid var(--danger); color: var(--danger); display: block; }
+.verdict.even   { background: rgba(245,166,35,0.12); border: 1px solid var(--accent); color: var(--accent); display: block; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <a href="../index.html" class="back-btn">← الرئيسية</a>
+
+  <div class="page-header">
+    <span class="page-icon">📈</span>
+    <div class="page-title">حاسبة الربح والخسارة</div>
+    <div class="page-desc">اعرف هامش ربحك على أي منتج</div>
+  </div>
+
+  <div class="card">
+    <div class="input-group">
+      <label>اسم المنتج (اختياري)</label>
+      <input type="text" id="productName" placeholder="مثال: أرز، زيت...">
+    </div>
+
+    <div class="input-group">
+      <label>سعر الشراء (التكلفة)</label>
+      <input type="number" id="cost" placeholder="0" min="0" step="any" oninput="calc()">
+    </div>
+
+    <div class="input-group">
+      <label>سعر البيع</label>
+      <input type="number" id="sell" placeholder="0" min="0" step="any" oninput="calc()">
+    </div>
+
+    <div class="input-group">
+      <label>الكمية (اختياري)</label>
+      <input type="number" id="qty" placeholder="1" min="1" step="1" oninput="calc()">
+    </div>
+
+    <div class="profit-meter"><div class="profit-bar" id="bar" style="width:0%"></div></div>
+
+    <div class="result-grid">
+      <div class="stat-box" id="profitBox">
+        <div class="stat-label">الربح / الوحدة</div>
+        <div class="stat-value" id="profitVal">—</div>
+      </div>
+      <div class="stat-box" id="marginBox">
+        <div class="stat-label">هامش الربح %</div>
+        <div class="stat-value" id="marginVal">—</div>
+      </div>
+      <div class="stat-box" id="totalBox">
+        <div class="stat-label">إجمالي الربح</div>
+        <div class="stat-value" id="totalVal">—</div>
+      </div>
+      <div class="stat-box" id="roiBox">
+        <div class="stat-label">العائد على التكلفة</div>
+        <div class="stat-value" id="roiVal">—</div>
+      </div>
+    </div>
+
+    <div class="verdict" id="verdict"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="clearAll()">🗑️ مسح</button>
+      <button class="btn btn-primary" onclick="copyAll()">📋 نسخ النتائج</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function r(v, d=2) { return Math.round(v * Math.pow(10,d)) / Math.pow(10,d); }
+
+function calc() {
+  const cost = parseFloat(document.getElementById('cost').value);
+  const sell = parseFloat(document.getElementById('sell').value);
+  const qty  = parseFloat(document.getElementById('qty').value) || 1;
+
+  if (isNaN(cost) || isNaN(sell) || cost <= 0 || sell <= 0) {
+    ['profitBox','marginBox','totalBox','roiBox'].forEach(id => {
+      document.getElementById(id).className = 'stat-box';
+    });
+    ['profitVal','marginVal','totalVal','roiVal'].forEach(id => document.getElementById(id).textContent = '—');
+    document.getElementById('bar').style.width = '0%';
+    document.getElementById('verdict').className = 'verdict';
+    return;
+  }
+
+  const profit = r(sell - cost);
+  const margin = r((profit / sell) * 100);
+  const roi    = r((profit / cost) * 100);
+  const total  = r(profit * qty);
+
+  const isProfit = profit > 0;
+  const isLoss   = profit < 0;
+  const cl = isProfit ? 'green' : isLoss ? 'red' : 'orange';
+
+  document.getElementById('profitVal').textContent = profit;
+  document.getElementById('profitVal').className = `stat-value ${cl}`;
+  document.getElementById('profitBox').className = `stat-box ${cl}`;
+
+  document.getElementById('marginVal').textContent = margin + '%';
+  document.getElementById('marginVal').className = `stat-value ${cl}`;
+  document.getElementById('marginBox').className = `stat-box ${cl}`;
+
+  document.getElementById('totalVal').textContent = total;
+  document.getElementById('totalVal').className = `stat-value ${cl}`;
+  document.getElementById('totalBox').className = `stat-box ${cl}`;
+
+  document.getElementById('roiVal').textContent = roi + '%';
+  document.getElementById('roiVal').className = `stat-value ${cl}`;
+  document.getElementById('roiBox').className = `stat-box ${cl}`;
+
+  const bar = document.getElementById('bar');
+  const pct = Math.min(Math.abs(margin), 100);
+  bar.style.width = pct + '%';
+  bar.className = `profit-bar ${isLoss ? 'loss' : margin < 15 ? 'low' : ''}`;
+
+  const v = document.getElementById('verdict');
+  if (isProfit) {
+    v.textContent = margin >= 20 ? `🎉 ربح ممتاز! هامش ${margin}%` : margin >= 10 ? `✅ ربح جيد ${margin}%` : `⚠️ ربح منخفض ${margin}%`;
+    v.className = 'verdict profit';
+  } else if (isLoss) {
+    v.textContent = `❌ خسارة! أنت تخسر ${Math.abs(profit)} في كل وحدة`;
+    v.className = 'verdict loss';
+  } else {
+    v.textContent = '➖ تعادل - لا ربح ولا خسارة';
+    v.className = 'verdict even';
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function copyAll() {
+  const cost = document.getElementById('cost').value;
+  const sell = document.getElementById('sell').value;
+  const name = document.getElementById('productName').value || 'المنتج';
+  const profit = document.getElementById('profitVal').textContent;
+  const margin = document.getElementById('marginVal').textContent;
+  const total  = document.getElementById('totalVal').textContent;
+
+  if (!cost || !sell) return;
+
+  const text = `${name}:\nتكلفة: ${cost} | بيع: ${sell}\nربح/وحدة: ${profit} | هامش: ${margin}\nإجمالي: ${total}`;
+  navigator.clipboard.writeText(text);
+  showToast('✅ تم نسخ النتائج!');
+}
+
+function clearAll() {
+  ['cost','sell','qty','productName'].forEach(id => document.getElementById(id).value = '');
+  calc();
+}
+</script>
+</body>
+</html>

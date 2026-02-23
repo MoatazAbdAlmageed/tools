@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حاسبة الفاتورة</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+.items-list { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+
+.item-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  animation: fadeUp 0.25s ease;
+}
+.item-row input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Cairo', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.item-row input::placeholder { color: var(--muted); font-weight: 400; }
+.item-row input.name-in { width: 100%; }
+.item-row input.num-in {
+  width: 70px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+}
+.item-total { color: var(--accent); font-weight: 900; font-size: 1rem; min-width: 60px; text-align: center; }
+.del-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.2s;
+}
+.del-btn:hover { color: var(--danger); }
+
+.add-item-btn {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 20px;
+}
+.add-item-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.totals-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.total-row:last-child { border-bottom: none; }
+.total-row .t-label { color: var(--muted); font-size: 0.88rem; font-weight: 600; }
+.total-row .t-value { font-weight: 900; font-size: 1.1rem; }
+.total-row.grand { background: linear-gradient(135deg, rgba(245,166,35,0.1), rgba(232,114,42,0.1)); }
+.total-row.grand .t-value { color: var(--accent); font-size: 1.4rem; }
+
+.col-header {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 8px;
+  padding: 0 14px;
+  margin-bottom: 6px;
+}
+.col-header span { font-size: 0.72rem; color: var(--muted); font-weight: 700; text-align: center; }
+.col-header span:first-child { text-align: right; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <a href="../index.html" class="back-btn">← الرئيسية</a>
+
+  <div class="page-header">
+    <span class="page-icon">🧾</span>
+    <div class="page-title">حاسبة الفاتورة</div>
+    <div class="page-desc">أضف أصناف واحسب الإجمالي تلقائياً</div>
+  </div>
+
+  <div class="card">
+    <div class="input-group">
+      <label>اسم العميل (اختياري)</label>
+      <input type="text" id="clientName" placeholder="اسم العميل أو رقم الطلب">
+    </div>
+
+    <div class="divider">الأصناف</div>
+
+    <div class="col-header">
+      <span>الصنف</span>
+      <span>الكمية</span>
+      <span>السعر</span>
+      <span>الإجمالي</span>
+    </div>
+
+    <div class="items-list" id="itemsList"></div>
+
+    <button class="add-item-btn" onclick="addItem()">+ إضافة صنف</button>
+
+    <div class="input-group" style="display:flex;gap:12px;align-items:flex-end">
+      <div style="flex:1">
+        <label>خصم إضافي %</label>
+        <input type="number" id="extraDisc" placeholder="0" min="0" max="100" step="any" oninput="updateTotals()">
+      </div>
+      <div style="flex:1">
+        <label>ضريبة %</label>
+        <input type="number" id="taxRate" placeholder="0" min="0" step="any" oninput="updateTotals()">
+      </div>
+    </div>
+
+    <div class="totals-section">
+      <div class="total-row">
+        <div class="t-label">المجموع الفرعي</div>
+        <div class="t-value" id="subtotal">0</div>
+      </div>
+      <div class="total-row" id="discRow" style="display:none">
+        <div class="t-label">الخصم</div>
+        <div class="t-value" style="color:var(--success)" id="discAmt">0</div>
+      </div>
+      <div class="total-row" id="taxRow" style="display:none">
+        <div class="t-label">الضريبة</div>
+        <div class="t-value" id="taxAmt">0</div>
+      </div>
+      <div class="total-row grand">
+        <div class="t-label">الإجمالي النهائي</div>
+        <div class="t-value" id="grandTotal">0</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="clearAll()">🗑️ مسح</button>
+      <button class="btn btn-primary" onclick="copyInvoice()">📋 نسخ الفاتورة</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let items = [];
+let counter = 0;
+
+function r(v) { return Math.round(v * 100) / 100; }
+
+function addItem(name='', qty=1, price='') {
+  const id = ++counter;
+  items.push({ id, name, qty, price });
+  renderItems();
+  updateTotals();
+}
+
+function renderItems() {
+  const list = document.getElementById('itemsList');
+  list.innerHTML = items.map(item => `
+    <div class="item-row" id="item-${item.id}">
+      <input class="name-in" type="text" placeholder="اسم الصنف" value="${item.name}"
+        oninput="updateItem(${item.id},'name',this.value)">
+      <input class="num-in" type="number" placeholder="كمية" value="${item.qty}" min="0" step="any"
+        oninput="updateItem(${item.id},'qty',this.value)">
+      <input class="num-in" type="number" placeholder="سعر" value="${item.price}" min="0" step="any"
+        oninput="updateItem(${item.id},'price',this.value)">
+      <div class="item-total" id="itotal-${item.id}">
+        ${item.qty && item.price ? r(item.qty * item.price) : '—'}
+      </div>
+      <button class="del-btn" onclick="removeItem(${item.id})">✕</button>
+    </div>
+  `).join('');
+}
+
+function updateItem(id, field, val) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  item[field] = field === 'name' ? val : parseFloat(val) || 0;
+  const tot = document.getElementById(`itotal-${id}`);
+  tot.textContent = item.qty && item.price ? r(item.qty * item.price) : '—';
+  updateTotals();
+}
+
+function removeItem(id) {
+  items = items.filter(i => i.id !== id);
+  renderItems();
+  updateTotals();
+}
+
+function updateTotals() {
+  const subtotal = r(items.reduce((s, i) => s + (i.qty || 0) * (i.price || 0), 0));
+  const disc = parseFloat(document.getElementById('extraDisc').value) || 0;
+  const tax  = parseFloat(document.getElementById('taxRate').value) || 0;
+
+  const discAmt = r(subtotal * disc / 100);
+  const afterDisc = r(subtotal - discAmt);
+  const taxAmt = r(afterDisc * tax / 100);
+  const grand = r(afterDisc + taxAmt);
+
+  document.getElementById('subtotal').textContent = subtotal;
+  document.getElementById('grandTotal').textContent = grand;
+
+  const discRow = document.getElementById('discRow');
+  const taxRow  = document.getElementById('taxRow');
+
+  if (disc > 0) {
+    discRow.style.display = 'flex';
+    document.getElementById('discAmt').textContent = `-${discAmt}`;
+  } else discRow.style.display = 'none';
+
+  if (tax > 0) {
+    taxRow.style.display = 'flex';
+    document.getElementById('taxAmt').textContent = taxAmt;
+  } else taxRow.style.display = 'none';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function copyInvoice() {
+  if (!items.length) return;
+  const client = document.getElementById('clientName').value;
+  const lines = [];
+  if (client) lines.push(`العميل: ${client}`);
+  lines.push('─'.repeat(30));
+  items.forEach(i => {
+    if (i.name || i.price) {
+      const tot = r((i.qty||0) * (i.price||0));
+      lines.push(`${i.name || 'صنف'} × ${i.qty} = ${tot}`);
+    }
+  });
+  lines.push('─'.repeat(30));
+  lines.push(`الإجمالي: ${document.getElementById('grandTotal').textContent}`);
+  navigator.clipboard.writeText(lines.join('\n'));
+  showToast('✅ تم نسخ الفاتورة!');
+}
+
+function clearAll() {
+  items = [];
+  counter = 0;
+  document.getElementById('clientName').value = '';
+  document.getElementById('extraDisc').value = '';
+  document.getElementById('taxRate').value = '';
+  renderItems();
+  updateTotals();
+}
+
+// Start with 3 empty items
+addItem(); addItem(); addItem();
+</script>
+</body>
+</html>

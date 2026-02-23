@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>محول الوحدات</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+.unit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.unit-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  transition: border-color 0.2s;
+  position: relative;
+}
+.unit-card:focus-within { border-color: var(--accent); }
+.unit-card.active-src { border-color: var(--accent); }
+
+.unit-name {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.unit-abbr {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+}
+.unit-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Cairo', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 900;
+}
+.unit-input::placeholder { color: var(--border); font-weight: 400; font-size: 1rem; }
+.u-copy {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+}
+
+.category-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.tab {
+  padding: 8px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  color: var(--muted);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.quick-ref {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-top: 20px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 2;
+}
+.quick-ref strong { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <a href="../index.html" class="back-btn">← الرئيسية</a>
+
+  <div class="page-header">
+    <span class="page-icon">🔄</span>
+    <div class="page-title">محول الوحدات</div>
+    <div class="page-desc">اكتب في أي خانة للتحويل الفوري</div>
+  </div>
+
+  <div class="card">
+    <div class="category-tabs">
+      <button class="tab active" onclick="setCategory('weight')">⚖️ وزن</button>
+      <button class="tab" onclick="setCategory('length')">📏 طول</button>
+      <button class="tab" onclick="setCategory('area')">⬜ مساحة</button>
+      <button class="tab" onclick="setCategory('currency')">💱 عملات</button>
+    </div>
+
+    <div class="unit-grid" id="unitGrid"></div>
+
+    <div class="quick-ref" id="quickRef"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="clearAll()">🗑️ مسح</button>
+      <button class="btn btn-primary" onclick="copyAll()">📋 نسخ الكل</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const categories = {
+  weight: {
+    name: 'وزن',
+    units: [
+      { key:'g',   label:'جرام',       abbr:'g',  toBase: 1 },
+      { key:'kg',  label:'كيلوجرام',   abbr:'kg', toBase: 1000 },
+      { key:'ton', label:'طن',          abbr:'t',  toBase: 1000000 },
+      { key:'lb',  label:'رطل (باوند)', abbr:'lb', toBase: 453.592 },
+      { key:'oz',  label:'أونصة',       abbr:'oz', toBase: 28.3495 },
+      { key:'qnt', label:'قنطار',       abbr:'قنطار', toBase: 100000 },
+    ],
+    ref: `<strong>1 كيلو</strong> = 1000 جرام &nbsp;|&nbsp; <strong>1 طن</strong> = 1000 كيلو &nbsp;|&nbsp; <strong>1 رطل</strong> ≈ 453.6 جرام &nbsp;|&nbsp; <strong>1 قنطار</strong> = 100 كيلو`
+  },
+  length: {
+    name: 'طول',
+    units: [
+      { key:'mm',  label:'ملليمتر', abbr:'mm',  toBase: 0.001 },
+      { key:'cm',  label:'سنتيمتر', abbr:'cm',  toBase: 0.01 },
+      { key:'m',   label:'متر',     abbr:'m',   toBase: 1 },
+      { key:'km',  label:'كيلومتر', abbr:'km',  toBase: 1000 },
+      { key:'in',  label:'إنش',     abbr:'in',  toBase: 0.0254 },
+      { key:'ft',  label:'قدم',     abbr:'ft',  toBase: 0.3048 },
+    ],
+    ref: `<strong>1 متر</strong> = 100 سم = 1000 مم &nbsp;|&nbsp; <strong>1 كيلومتر</strong> = 1000 متر &nbsp;|&nbsp; <strong>1 إنش</strong> ≈ 2.54 سم`
+  },
+  area: {
+    name: 'مساحة',
+    units: [
+      { key:'m2',   label:'متر مربع',    abbr:'م²',    toBase: 1 },
+      { key:'km2',  label:'كيلومتر مربع',abbr:'كم²',   toBase: 1000000 },
+      { key:'fed',  label:'فدان',         abbr:'فدان',  toBase: 4200 },
+      { key:'qrt',  label:'قيراط',        abbr:'قيراط', toBase: 175 },
+      { key:'ha',   label:'هكتار',        abbr:'ha',    toBase: 10000 },
+      { key:'acre', label:'أكر',          abbr:'acre',  toBase: 4046.86 },
+    ],
+    ref: `<strong>1 فدان</strong> = 24 قيراط = 4200 م² &nbsp;|&nbsp; <strong>1 هكتار</strong> = 10,000 م² &nbsp;|&nbsp; <strong>1 فدان</strong> ≈ 0.42 هكتار`
+  },
+  currency: {
+    name: 'عملات (تقريبي)',
+    units: [
+      { key:'egp', label:'جنيه مصري',    abbr:'EGP',  toBase: 1 },
+      { key:'sar', label:'ريال سعودي',   abbr:'SAR',  toBase: 8.4 },
+      { key:'uae', label:'درهم إماراتي', abbr:'AED',  toBase: 8.9 },
+      { key:'usd', label:'دولار أمريكي', abbr:'USD',  toBase: 32.5 },
+      { key:'eur', label:'يورو',          abbr:'EUR',  toBase: 35.5 },
+      { key:'kwd', label:'دينار كويتي',  abbr:'KWD',  toBase: 106 },
+    ],
+    ref: `<strong>تنبيه:</strong> أسعار الصرف تقريبية. تحقق من السعر الحالي قبل التعامل &nbsp;|&nbsp; البيانات قد تكون غير محدثة`
+  }
+};
+
+let currentCat = 'weight';
+
+function setCategory(cat) {
+  currentCat = cat;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const keys = ['weight','length','area','currency'];
+    t.classList.toggle('active', keys[i] === cat);
+  });
+  clearAll();
+  renderGrid();
+}
+
+function renderGrid() {
+  const cat = categories[currentCat];
+  const grid = document.getElementById('unitGrid');
+  grid.innerHTML = cat.units.map(u => `
+    <div class="unit-card" id="card-${u.key}">
+      <div class="unit-name">
+        ${u.label}
+        <span class="unit-abbr">${u.abbr}</span>
+      </div>
+      <input class="unit-input" type="number" id="u-${u.key}"
+        placeholder="0" min="0" step="any"
+        oninput="convertFrom('${u.key}')">
+      <button class="copy-btn u-copy" onclick="copyUnit('${u.key}')">📋</button>
+    </div>
+  `).join('');
+  document.getElementById('quickRef').innerHTML = cat.ref;
+}
+
+function r(v) {
+  if (v === 0) return 0;
+  const mag = Math.floor(Math.log10(Math.abs(v)));
+  const factor = Math.pow(10, 6 - mag);
+  return Math.round(v * factor) / factor;
+}
+
+function convertFrom(srcKey) {
+  const cat = categories[currentCat];
+  const srcUnit = cat.units.find(u => u.key === srcKey);
+  const val = parseFloat(document.getElementById(`u-${srcKey}`).value);
+
+  cat.units.forEach(u => {
+    if (u.key === srcKey) return;
+    const el = document.getElementById(`u-${u.key}`);
+    if (isNaN(val)) { el.value = ''; return; }
+    const inBase = val * srcUnit.toBase;
+    el.value = r(inBase / u.toBase);
+  });
+}
+
+function copyUnit(key) {
+  const v = document.getElementById(`u-${key}`).value;
+  if (!v) return;
+  navigator.clipboard.writeText(v);
+  showToast('✅ تم النسخ');
+}
+
+function copyAll() {
+  const cat = categories[currentCat];
+  const lines = cat.units.map(u => {
+    const v = document.getElementById(`u-${u.key}`).value;
+    return v ? `${u.label}: ${v}` : null;
+  }).filter(Boolean);
+  if (!lines.length) return;
+  navigator.clipboard.writeText(lines.join('\n'));
+  showToast('✅ تم نسخ الكل');
+}
+
+function clearAll() {
+  const cat = categories[currentCat];
+  cat.units.forEach(u => {
+    const el = document.getElementById(`u-${u.key}`);
+    if (el) el.value = '';
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+renderGrid();
+</script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حاسبة سعر البيع المستهدف</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+.slider-wrap {
+  margin: 6px 0 18px;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+input[type=range] {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 6px;
+  background: var(--border);
+  border-radius: 30px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(245,166,35,0.5);
+}
+.range-val {
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 4px 12px;
+  color: var(--accent);
+  font-weight: 900;
+  font-size: 1.05rem;
+  min-width: 56px;
+  text-align: center;
+}
+
+.price-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.br-label { color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+.br-value { font-size: 1.25rem; font-weight: 900; }
+
+.big-sell {
+  text-align: center;
+  padding: 28px;
+  background: linear-gradient(135deg, rgba(245,166,35,0.08), rgba(232,114,42,0.08));
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  margin-top: 20px;
+}
+.big-sell .bs-label { color: var(--muted); font-size: 0.88rem; margin-bottom: 8px; }
+.big-sell .bs-value { font-size: 3.2rem; font-weight: 900; color: var(--accent); line-height: 1; }
+.big-sell .bs-sub { color: var(--muted); font-size: 0.82rem; margin-top: 10px; }
+
+.suggestions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.sug-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sug-card:hover { border-color: var(--accent); }
+.sug-pct { font-size: 0.75rem; color: var(--muted); font-weight: 700; }
+.sug-price { font-size: 1.1rem; font-weight: 900; color: var(--text); }
+.sug-profit { font-size: 0.72rem; color: var(--success); }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <a href="../index.html" class="back-btn">← الرئيسية</a>
+
+  <div class="page-header">
+    <span class="page-icon">🎯</span>
+    <div class="page-title">سعر البيع المستهدف</div>
+    <div class="page-desc">حدد هامش ربحك وسيحسب لك سعر البيع</div>
+  </div>
+
+  <div class="card">
+    <div class="input-group">
+      <label>سعر التكلفة</label>
+      <input type="number" id="cost" placeholder="0" min="0" step="any" oninput="calc()">
+    </div>
+
+    <div class="input-group">
+      <label>هامش الربح المطلوب %</label>
+      <div class="slider-wrap">
+        <div class="slider-row">
+          <input type="range" id="marginSlider" min="1" max="200" value="20"
+            oninput="syncSlider(this.value); calc()">
+          <div class="range-val" id="sliderDisplay">20%</div>
+        </div>
+      </div>
+      <input type="number" id="marginInput" placeholder="20" min="0" step="any"
+        oninput="syncInput(this.value); calc()" style="margin-top:0">
+    </div>
+
+    <div class="big-sell" id="bigSell">
+      <div class="bs-label">سعر البيع المقترح</div>
+      <div class="bs-value" id="sellPrice">—</div>
+      <div class="bs-sub" id="profitSub"></div>
+    </div>
+
+    <div class="price-breakdown" id="breakdown" style="display:none">
+      <div class="breakdown-row">
+        <div class="br-label">التكلفة</div>
+        <div class="br-value" id="bCost">—</div>
+      </div>
+      <div class="breakdown-row">
+        <div class="br-label">الربح (هامش)</div>
+        <div class="br-value" style="color:var(--success)" id="bProfit">—</div>
+      </div>
+      <div class="breakdown-row">
+        <div class="br-label">نسبة الربح من البيع</div>
+        <div class="br-value" style="color:var(--accent3)" id="bMarginOnSell">—</div>
+      </div>
+    </div>
+
+    <div class="divider">مقترحات هامش الربح</div>
+    <div class="suggestions" id="suggestions"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="clearAll()">🗑️ مسح</button>
+      <button class="btn btn-primary" onclick="copyResult()">📋 نسخ</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function r(v, d=2) { return Math.round(v * Math.pow(10,d)) / Math.pow(10,d); }
+
+function syncSlider(v) {
+  document.getElementById('marginInput').value = v;
+  document.getElementById('sliderDisplay').textContent = v + '%';
+}
+function syncInput(v) {
+  const clamped = Math.max(1, Math.min(200, parseFloat(v)||1));
+  document.getElementById('marginSlider').value = clamped;
+  document.getElementById('sliderDisplay').textContent = clamped + '%';
+}
+
+function calc() {
+  const cost   = parseFloat(document.getElementById('cost').value);
+  const margin = parseFloat(document.getElementById('marginInput').value) || 20;
+
+  buildSuggestions(isNaN(cost) ? 0 : cost);
+
+  if (isNaN(cost) || cost <= 0) {
+    document.getElementById('sellPrice').textContent = '—';
+    document.getElementById('profitSub').textContent = '';
+    document.getElementById('breakdown').style.display = 'none';
+    return;
+  }
+
+  // sell = cost * (1 + margin/100) — markup on cost
+  const sell   = r(cost * (1 + margin / 100));
+  const profit = r(sell - cost);
+  const marginOnSell = r((profit / sell) * 100);
+
+  document.getElementById('sellPrice').textContent = sell;
+  document.getElementById('profitSub').textContent = `ربح ${profit} | هامش على البيع ${marginOnSell}%`;
+  document.getElementById('breakdown').style.display = 'flex';
+  document.getElementById('bCost').textContent = cost;
+  document.getElementById('bProfit').textContent = `+${profit}`;
+  document.getElementById('bMarginOnSell').textContent = marginOnSell + '%';
+}
+
+function buildSuggestions(cost) {
+  const percs = [10, 15, 20, 25, 30, 50];
+  document.getElementById('suggestions').innerHTML = percs.map(p => {
+    const sell = cost > 0 ? r(cost * (1 + p/100)) : '—';
+    const profit = cost > 0 ? r(cost * p / 100) : '—';
+    return `<div class="sug-card" onclick="setMargin(${p})">
+      <div class="sug-pct">${p}% ربح</div>
+      <div class="sug-price">${sell}</div>
+      <div class="sug-profit">+${profit}</div>
+    </div>`;
+  }).join('');
+}
+
+function setMargin(v) {
+  document.getElementById('marginInput').value = v;
+  syncInput(v);
+  calc();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function copyResult() {
+  const sell = document.getElementById('sellPrice').textContent;
+  if (sell === '—') return;
+  navigator.clipboard.writeText(sell);
+  showToast('✅ تم نسخ سعر البيع');
+}
+
+function clearAll() {
+  document.getElementById('cost').value = '';
+  document.getElementById('marginInput').value = '20';
+  syncInput(20);
+  calc();
+}
+
+buildSuggestions(0);
+</script>
+</body>
+</html>

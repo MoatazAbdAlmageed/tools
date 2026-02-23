@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حاسبة الخصومات</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+.quick-discounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.disc-chip {
+  padding: 7px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 30px;
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.disc-chip:hover, .disc-chip.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.big-result {
+  text-align: center;
+  padding: 32px;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  margin: 20px 0;
+}
+.big-result .label { color: var(--muted); font-size: 0.85rem; margin-bottom: 8px; }
+.big-result .price-after { font-size: 3rem; font-weight: 900; color: var(--accent); line-height: 1; }
+.big-result .saved { color: var(--success); font-size: 1rem; margin-top: 10px; font-weight: 700; }
+
+.multi-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.multi-table th {
+  background: var(--card2);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-align: right;
+}
+.multi-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.multi-table tr:hover td { background: var(--card); }
+.multi-table .copy-cell { text-align: left; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <a href="../index.html" class="back-btn">← الرئيسية</a>
+
+  <div class="page-header">
+    <span class="page-icon">🏷️</span>
+    <div class="page-title">حاسبة الخصومات</div>
+    <div class="page-desc">احسب سعر ما بعد الخصم بسرعة</div>
+  </div>
+
+  <div class="card">
+    <div class="input-group">
+      <label>السعر الأصلي</label>
+      <input type="number" id="original" placeholder="0" min="0" step="any" oninput="calc()">
+    </div>
+
+    <div class="input-group">
+      <label>نسبة الخصم %</label>
+      <input type="number" id="discount" placeholder="0" min="0" max="100" step="any" oninput="calc(); updateChips()">
+    </div>
+
+    <div class="quick-discounts">
+      <span class="label" style="color:var(--muted);font-size:0.8rem;width:100%;">خصومات سريعة:</span>
+      <button class="disc-chip" onclick="setDisc(5)">5%</button>
+      <button class="disc-chip" onclick="setDisc(10)">10%</button>
+      <button class="disc-chip" onclick="setDisc(15)">15%</button>
+      <button class="disc-chip" onclick="setDisc(20)">20%</button>
+      <button class="disc-chip" onclick="setDisc(25)">25%</button>
+      <button class="disc-chip" onclick="setDisc(30)">30%</button>
+      <button class="disc-chip" onclick="setDisc(50)">50%</button>
+    </div>
+
+    <div class="big-result" id="mainResult">
+      <div class="label">السعر بعد الخصم</div>
+      <div class="price-after" id="priceAfter">—</div>
+      <div class="saved" id="savedAmt"></div>
+    </div>
+
+    <div class="divider">جدول الخصومات المقارنة</div>
+
+    <table class="multi-table" id="compTable">
+      <thead>
+        <tr>
+          <th>الخصم</th>
+          <th>السعر بعده</th>
+          <th>التوفير</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="compBody"></tbody>
+    </table>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="clearAll()">🗑️ مسح</button>
+      <button class="btn btn-primary" onclick="copyResult()">📋 نسخ</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function r(v) { return Math.round(v * 100) / 100; }
+
+function calc() {
+  const orig = parseFloat(document.getElementById('original').value);
+  const disc = parseFloat(document.getElementById('discount').value);
+
+  if (isNaN(orig) || isNaN(disc)) {
+    document.getElementById('priceAfter').textContent = '—';
+    document.getElementById('savedAmt').textContent = '';
+    buildCompTable(isNaN(orig) ? 0 : orig);
+    return;
+  }
+
+  const saved = r(orig * disc / 100);
+  const after = r(orig - saved);
+  document.getElementById('priceAfter').textContent = after;
+  document.getElementById('savedAmt').textContent = `وفّرت: ${saved} (${disc}%)`;
+  buildCompTable(orig);
+}
+
+function buildCompTable(orig) {
+  const percs = [5, 10, 15, 20, 25, 30, 50];
+  const body = document.getElementById('compBody');
+  if (!orig || orig <= 0) { body.innerHTML = ''; return; }
+
+  body.innerHTML = percs.map(p => {
+    const saved = r(orig * p / 100);
+    const after = r(orig - saved);
+    return `<tr>
+      <td>${p}%</td>
+      <td style="color:var(--accent);font-weight:900">${after}</td>
+      <td style="color:var(--success)">${saved}</td>
+      <td class="copy-cell"><button class="copy-btn" onclick="copyNum(${after})">📋</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function setDisc(v) {
+  document.getElementById('discount').value = v;
+  calc();
+  updateChips();
+}
+
+function updateChips() {
+  const v = parseFloat(document.getElementById('discount').value);
+  document.querySelectorAll('.disc-chip').forEach(c => {
+    c.classList.toggle('active', parseFloat(c.textContent) === v);
+  });
+}
+
+function copyNum(n) {
+  navigator.clipboard.writeText(String(n));
+  showToast('✅ تم النسخ');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function copyResult() {
+  const orig = document.getElementById('original').value;
+  const disc = document.getElementById('discount').value;
+  const after = document.getElementById('priceAfter').textContent;
+  if (after === '—') return;
+  const saved = r(orig * disc / 100);
+  navigator.clipboard.writeText(`السعر الأصلي: ${orig}\nالخصم: ${disc}%\nالسعر بعد الخصم: ${after}\nالتوفير: ${saved}`);
+  showToast('✅ تم نسخ النتيجة');
+}
+
+function clearAll() {
+  document.getElementById('original').value = '';
+  document.getElementById('discount').value = '';
+  document.querySelectorAll('.disc-chip').forEach(c => c.classList.remove('active'));
+  calc();
+}
+</script>
+</body>
+</html>
